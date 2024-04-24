@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=pi
+Comment=pi_approximator
+Path=/home/pi/pi_monte_carlo/
+Exec=lxterminal -e '/home/pi/pi_monte_carlo/start.sh'
+Terminal=false
+Type=Application
+Icon=/home/pi/pi_monte_carlo/pigreco.ico

@@ -1,0 +1,59 @@
+1. Flash the Raspberry Pi OS (64-bit) Bookworm
+
+2. Update the system:
+a) sudo apt update
+b) sudo apt upgrade -y
+c) sudo reboot
+
+3. Install the libraries:
+a) sudo apt-get install libopencv-dev
+b) sudo apt-get install python3-opencv
+c) sudo apt install python3-matplotlib
+
+4. Prepare the environment:
+a) mkdir pi_monte_carlo
+b) cd pi_monte_carlo
+c) python3 -m venv .virtualenvs --system-site-packages
+d) source .virtualenvs/bin/activate
+e) mkdir info
+
+5. Copy below files into the folder pi_monte_carlo:
+a) pi.py
+b) pi_settings.txt
+c) start.sh  (note: rename from start.sh.txt to start.sh)
+
+6. Copy below files into the folder pi_monte_carlo/info:
+a) From Slide1.jpg to Slide9.jpg
+
+7. Make a text file, named pi_start.desktop, on the Raspberry Pi Desktop. Add below strings:
+[Desktop Entry]
+Name=pi
+Comment=pi_approximator
+Path=/home/pi/pi_monte_carlo/
+Exec=lxterminal -e '/home/pi/pi_monte_carlo/start.sh'
+Terminal=false
+Type=Application
+Icon=/home/pi/pi_monte_carlo/pigreco.ico
+
+
+8. Give executable property to the start.sh file:
+a) cd pi_monte_carlo
+b) chmod +x /home/pi/pi_monte_carlo/start.sh
+
+9. Organize the code upload at the power on:
+a) sudo crontab –e   (and add below strings at file end:)
+MAILTO=""
+@reboot su - pi -c "/usr/bin/vncserver-virtual :1 -randr=1280x720"
+@reboot /bin/sleep 60; bash -l /home/pi_monte_carlo/start.sh > /home/pi/pi_monte_carlo/terminal.log 2>&1 (it is e) written in one line)
+b) save the file (Ctrl X, Y, Enter)
+c) sudo reboot
+
+
+For the touchscreen display, follow the instruction of the one you buy.
+In my case, the instructions were:
+1. sudo rm -rf LCD-show
+2. git clone https://github.com/goodtft/LCD-git
+3. chmod -R 755 LCD-show
+4. cd LCD-show/
+5. sudo ./LCD7C-show (this commands quickly plots a couple of commands and the board reboot)
+
