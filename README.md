@@ -1,6 +1,6 @@
 # pi_monte_carlo
 
-(still work in progress :-) )
+(this repo is still work in progress :-) )
 
 Approximates pi via Monte Carlo method
 
