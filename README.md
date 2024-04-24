@@ -5,7 +5,7 @@
 Approximates pi via Monte Carlo method
 
 This repo contains the relevant files to make a standalone device that approximates pi, with a graphical animation
-![title image](/images/title.png)
+![title image](https://github.com/AndreaFavero71/pi_monte_carlo/blob/main/pi_monte_carlo/images/title.jpg)
 
 Further robot info at: https://www.instructables.com/member/AndreaFavero/
 
