@@ -5,11 +5,12 @@
 Approximates pi via Monte Carlo method
 
 This repo contains the relevant files to make a standalone device that approximates pi, with a graphical animation
+
 ![title image](https://github.com/AndreaFavero71/pi_monte_carlo/blob/main/pi_monte_carlo/images/title.jpg)
 
-Further robot info at: https://www.instructables.com/member/AndreaFavero/
+Further robot info at: (https://www.instructables.com/Pi-Approximation-With-Raspberry-Pi-Monte-Carlo-Met/)
 
-An impression of the device: https://youtu.be/TkHhk7qaoyI
+An impression of the device: (https://youtu.be/K6qTwk_mXm4)
 
 
 # What is needed:
