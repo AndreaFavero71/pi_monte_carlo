@@ -40,11 +40,10 @@ if ! crontab -l 2>/dev/null | grep -q "start.sh"; then
 fi
 
 print_header "Giving execuatble rights to file start.sh"
-chmod +x /home/pi/pi_monte_carlo/pi_monte_carlo/start.sh
+chmod +x /home/pi/pi_monte_carlo/start.sh
 
 print_header "Copying file start.desktop to Desktop"
-cp /home/pi/pi_monte_carlo/pi_monte_carlo/setup/pi_start.desktop /home/pi/Desktop
+cp /home/pi/pi_monte_carlo/install/pi_start.desktop /home/pi/Desktop
 
 print_header "Reboot now? (y lowercase to confirm)"
 read x && [[ "$x" == "y" ]] && /sbin/reboot;
-
