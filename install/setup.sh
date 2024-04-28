@@ -39,7 +39,7 @@ if ! crontab -l 2>/dev/null | grep -q "start.sh"; then
 	| crontab -
 fi
 
-print_header "Giving execuatble rights to file start.sh"
+print_header "Giving executable rights to file start.sh"
 chmod +x /home/pi/pi_monte_carlo/start.sh
 
 print_header "Copying file start.desktop to Desktop"
