@@ -35,7 +35,6 @@ e) Check "Don't ask option on launch executable file"
 a) sudo crontab –e   (and add below strings at file end:)
 MAILTO=""
 @reboot su - pi -c "/usr/bin/vncserver-virtual :1 -randr=1280x720"
-@reboot /bin/sleep 60; bash -l /home/pi_monte_carlo/start.sh > /home/pi/pi_monte_carlo/terminal.log 2>&1 (it is e) written in one line)
 b) save the file (Ctrl X, Y, Enter)
 c) sudo reboot
 
