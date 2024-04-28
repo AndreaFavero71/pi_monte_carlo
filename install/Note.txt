@@ -1,1 +1,0 @@
-copy pi_start.desktop to the Raspberry Pi Desktop
