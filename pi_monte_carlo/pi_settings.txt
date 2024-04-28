@@ -2,7 +2,7 @@
 "h": "520",
 "wait": "20",
 "step": "10",
-"runs": "10",
-"dots": "10000",
-"animation": "med"
+"runs": "50",
+"dots": "1000",
+"animation": "max"
 }
