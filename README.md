@@ -1,7 +1,7 @@
 # pi_monte_carlo
 
 
-Approximates π via Monte Carlo method.
+Approximates π via Monte Carlo method, by using a Raspberry Pi.
 
 This repo contains the relevant files to make a standalone device that approximates pi, with a graphical animation.
 
