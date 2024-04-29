@@ -15,9 +15,9 @@ a) mkdir pi_monte_carlo
 b) cd pi_monte_carlo
 c) python3 -m venv .virtualenvs --system-site-packages
 d) source .virtualenvs/bin/activate
-e) gitclone https://github.com/AndreaFavero71/pi_monte_carlo
+e) git clone https://github.com/AndreaFavero71/pi_monte_carlo.git
 
-5. Move below file from pi_monte_carlo/setup folder to the Desktop:
+5. Move below file from pi_monte_carlo/install folder to the Desktop:
 a) pi_start.desktop
 
 6. Give executable property to the start.sh file; From the terminal:
@@ -29,10 +29,10 @@ a) Open the File Manager
 b) Select Edit
 c) Select Preferences
 d) At the General tab
-e) Check "Don't ask option on launch executable file"
+e) Check the "Don't ask option on launch executable file" option.
 
-8. Organize the code upload at the power on:
-a) sudo crontab –e   (and add below strings at file end:)
+8. Organize the code for VNC connection at the boot:
+a) sudo crontab â€“e   (and add below strings at file end:)
 MAILTO=""
 @reboot su - pi -c "/usr/bin/vncserver-virtual :1 -randr=1280x720"
 b) save the file (Ctrl X, Y, Enter)
@@ -41,8 +41,9 @@ c) sudo reboot
 
 For the touchscreen display, follow the instruction of the purchased one. In my case, the instructions were:
 1. sudo rm -rf LCD-show
-2. git clone https://github.com/goodtft/LCD-git
+2. git clone https://github.com/goodtft/LCD-show.git
 3. chmod -R 755 LCD-show
 4. cd LCD-show/
-5. sudo ./LCD7C-show (this commands quickly plots a couple of commands and the board reboot)
+5. sudo ./LCD7C-show
+The last command quickly plots a couple of strings to the terminal and the board reboots.
 
