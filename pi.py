@@ -3,7 +3,7 @@
 
 """
 ###################################################################################
-# Andrea Favero          Rev. 27 April 2024
+# Andrea Favero          Rev. 29 April 2024
 # 
 # pi value approximation via Monte Carlo method and Central Limit Theorem
 #
@@ -526,6 +526,9 @@ class MonteCarlo(Thread):
         
         start = time.time()                     # current time is assignet to start variable
         
+        self.s = settings.get_settings()        # settings are retrieved
+        wait_a = int(self.s['wait'])            # wait is 'loaded' each time this function is called
+        
         self.pi_results = []                    # list for the estimated pi values (one value each run)
         
         # assigning local variables (from arguments) to montecarlo class 
@@ -609,14 +612,14 @@ class MonteCarlo(Thread):
                         
                         if i % self.step == 0 and not self.close_window:   # case the iteration have not reached the 'step' value
                             self.pi_ext = pi_arr[i]   # the estimated pi value is retrieved from pi_arr (array of estimated pi values)
-                            self.plot_dots(run, in_circle_cum, i, self.pi_ext, self.wait) # dots and updated info are plotted
+                            self.plot_dots(run, in_circle_cum, i, self.pi_ext, wait_a) # dots and updated info are plotted
                             
                             # approach used to make the animation accelerating 
                             newstep = max(1, i // 100)  # for the first 100 dots the new step remins at one 
                             if newstep > self.step:   # case newstep is bigger than the step
                                 self.step = newstep   # newstep is assigned to step
-                                self.wait -= 10       # wait time is reduced by 10 (ms)
-                                self.wait = max(1, self.wait) # wait time is never smaller than 1 ms
+                                wait_a -= 10          # wait_a time is reduced by 10 (ms)
+                                wait_a = max(1, wait_a) # wait_a time is never smaller than 1 ms
             
             
             # last update for the printed dots and informations
@@ -682,10 +685,18 @@ class MonteCarlo(Thread):
             if not self.close_window:                 # case no request to quit
                 if animation == 'min':                # case the animation selected is 'min'
                     cv2.waitKey(1)                    # showtime in ms (1ms)
+                
                 elif animation == 'med':              # case the animation selected is 'med'
                     cv2.waitKey(100)                  # showtime in ms (0.1 s)
+                
                 elif animation == 'max':              # case the animation selected is 'max'
-                    cv2.waitKey(1000)                 # showtime in ms (1 s)
+                    t_ref = time.time()               # current time is assigned to t_ref variable
+                    while time.time() - t_ref < 1:    # while loop for 1 second
+                        key = cv2.waitKey(1)          # showtime in ms (of the last shown window)
+                        if self.check_close_req(key): # case the window has been closed
+                            self.close_window = True  # close_window is set True
+                            break                     # while loop is interrupted
+                       
             else:                                     # case there is a request to quit
                 break                                 # for loop is interupted
             
@@ -693,7 +704,12 @@ class MonteCarlo(Thread):
             self.redraw(thk=1, clean=True)            # redraw function is called in 'cleaning' mode
                 
         if run == self.runs-1:                        # case it is the last run
-            cv2.waitKey(10000)                        # showtime in ms (10 s)
+            t_ref = time.time()                       # current time is assigned to t_ref variable
+            while time.time() - t_ref < 10:           # while loop for 10 seconds
+                key = cv2.waitKey(1)                  # showtime in ms (of the last shown window)
+                if self.check_close_req(key):         # case the window has been closed
+                    self.close_window = True          # close_window is set True
+                    break                             # while loop is interrupted
                     
         cv2.destroyAllWindows()                       # all openCV windows are closed
         
