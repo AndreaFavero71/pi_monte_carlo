@@ -42,19 +42,18 @@ sudo ./install/setup.sh
 8. If the question "Reboot (y/n) does appear, You should get the proper environment after the reboot.
 9. After the reboot, you can connect to the Raspberry Pi via VNC, or directly via the touchscreen: Double-click the pi icon on the Desktop to start the app.
 10. You'll be asked to confirm the intention to run an executable. To remove this request: File Manager, Edit, Preferences, General (tab), Check the "Don't ask option on launch executable file" option.
-11. If not done yet, apply the setting required by the purchased touchscreen.
-12. The device is now up and running 🙂.
+11. If not done yet, apply the setting required for the purchased touchscreen. In my case:
 
-    
+```
+sudo rm -rf LCD-show
+git clone https://github.com/goodtft/LCD-show.git
+chmod -R 755 LCD-show
+cd LCD-show/
+sudo ./LCD7C-show
+```
+The last command quickly plots a couple of commands and the board reboots). <br />
+The device is now up and running 🙂.
+
+
 If you prefer a manual installation, you can follow the steps listed at ([setup/Installation_steps.txt](https://github.com/AndreaFavero71/pi_monte_carlo/blob/main/install/Installation_steps.txt)) <br /><br />
 
-Note:
-To setup the touchscreen indicated above:
-1. sudo rm -rf LCD-show
-2. git clone https://github.com/goodtft/LCD-show.git
-3. chmod -R 755 LCD-show
-4. cd LCD-show/
-5. sudo ./LCD7C-show <br />
-
-The last command quickly plots a couple of commands and the board reboots. <br />
-The device has now a nice touchscreen 🙂 
