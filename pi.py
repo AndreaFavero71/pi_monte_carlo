@@ -3,7 +3,7 @@
 
 """
 ###################################################################################
-# Andrea Favero          Rev. 29 April 2024
+# Andrea Favero          Rev. 05 May 2024
 # 
 # pi value approximation via Monte Carlo method and Central Limit Theorem
 #
@@ -11,7 +11,7 @@
 """
 
 # __version__ variable
-version = '0.1'
+version = '0.2'
 
 
 
@@ -34,6 +34,7 @@ args = parser.parse_args()   # argument parsed assignement
 
 ########################### imports ###############################################
 import tkinter as tk                 # GUI library
+from tkinter import ttk              # ttk module is imported from tkinter
 import cv2                           # OpenCV library used for the Monte Carlo graphical part
 from PIL import ImageTk, Image, ImageGrab # library for images management
 
@@ -48,7 +49,9 @@ import matplotlib.pyplot as plt      # library to make charts
 
 import os.path, pathlib, json        # libraries for files and Json file management
 import datetime as dt                # date and time library used as timestamp on a few situations (i.e. data log)
+from datetime import timedelta       # module for time difference
 import time                          # time library
+import subprocess                    # used to interract with Raspberry Pi processes
 # #################################################################################
 
 
@@ -76,11 +79,15 @@ class Ticket:
     # A ticket class in used in 'between' tkinter and openCV, to share some data
    def __init__(self,
                 ticket_type: TicketPurpose,
+                ticket_run: int,
                 ticket_value: str,
-                ticket_bg: str):
+                ticket_bg: str,
+                ticket_progress: float):
+       self.ticket_run = ticket_run
        self.ticket_type = ticket_type
        self.ticket_value = ticket_value
        self.ticket_bg = ticket_bg
+       self.ticket_progress = ticket_progress
 # #################################################################################
 
 
@@ -188,12 +195,12 @@ class MonteCarlo(Thread):
         self.wait = int(str(s['wait']))         # initial delay in ms per each dot plotting
         self.step = int(str(s['step']))         # delay reduction step of the wait parameter
         self.h = int(str(s['h']))               # window height parameter
-        self.w = int(1.7 * self.h)              # window width parameter is proportional to the height
+        self.w = int(1.66 * self.h)             # window width parameter is proportional to the height
         self.gap = int(0.04 * self.h)           # gap parameter is is proportional to the height
         self.r = int((self.h -2*self.gap)//2)   # radius parameter is proportional to the height
         self.center = self.r                    # radius r is assigned to center variable        
               
-        self.x_text = self.h                    # x coordinate for the text starting position
+        self.x_text = self.h - self.gap//2      # x coordinate for the text starting position
         self.font = cv2.FONT_HERSHEY_SIMPLEX    # type of cv2 font used in this script
         self.fontScale1 = 0.00175 * self.h      # font size used, when not (locally)  changed
         self.fontScale2 = 0.0015 * self.h       # font size used, when not (locally)  changed
@@ -392,11 +399,11 @@ class MonteCarlo(Thread):
         if startup:                             # case startup is set True (sketch gets prepared)
             cv2.rectangle(self.sketch, (self.x_text, 4*self.gap),
                           (self.w, self.h), (230, 230, 230), -1)  # gray rectangle to 'erase' previous text
-            cv2.putText(self.sketch, f'run = ', (self.x_text, 6*self.gap),
+            cv2.putText(self.sketch, f'run ', (self.x_text, 6*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
-            cv2.putText(self.sketch, f'dots in circle = ', (self.x_text, 9*self.gap),
+            cv2.putText(self.sketch, f'dots in circle ', (self.x_text, 9*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
-            cv2.putText(self.sketch, f'total dots = ', (self.x_text, 12*self.gap),
+            cv2.putText(self.sketch, f'total dots ', (self.x_text, 12*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
             cv2.putText(self.sketch, f'pi ~ ', (self.x_text, 15*self.gap),
                         self.font, self.fontScale1,(0,0,0),self.lineType)
@@ -404,11 +411,11 @@ class MonteCarlo(Thread):
         else:                                   # case startup is set False (sketch is already prepared)
             cv2.rectangle(self.sketch, (self.x_text, 4*self.gap),
                           (self.w, self.h), (230, 230, 230), -1)  # gray rectangle to 'erase' previous text
-            cv2.putText(self.sketch, f'run = {run+1} of {self.runs}', (self.x_text, 6*self.gap),
+            cv2.putText(self.sketch, f'run {run+1} of {self.runs}', (self.x_text, 6*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
-            cv2.putText(self.sketch, f'dots in circle = {in_circle_cum[i]:,d}', (self.x_text, 9*self.gap),
+            cv2.putText(self.sketch, f'dots in circle {in_circle_cum[i]:,d}', (self.x_text, 9*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
-            cv2.putText(self.sketch, f'total dots = {i+1:,d}', (self.x_text, 12*self.gap),
+            cv2.putText(self.sketch, f'total dots {i+1:,d}', (self.x_text, 12*self.gap),
                         self.font, self.fontScale2,(0,0,0),self.lineType)
             cv2.putText(self.sketch, f'pi ~ {pi:.8f}', (self.x_text, 15*self.gap),
                         self.font, self.fontScale1,(0,0,0),self.lineType)
@@ -457,10 +464,15 @@ class MonteCarlo(Thread):
         
         fname = datetime + '_log.txt'           # file name for the log
         fname = os.path.join(folder,fname)      # folder and file name for the settings
-
+        
         with open(fname, 'w') as f:             # opens the file fname in writing mode 
-            for pi in pi_results:               # iterates on estimated pi values in pi_results
-                f.write(str(pi)+'\n')           # writes one estimated pi value per row
+            max_values = 50000                  # upper limit for the quantity of estimated pi to save
+            if len(pi_results) > max_values:    # case quantity of estimated pi values is above the limit
+                for pi in pi_results[:max_values]: # iterates estimated pi values in pi_results (first within limit)
+                    f.write(str(pi)+'\n')       # writes one estimated pi value per row
+            else:                               # case quantity of estimated pi values is within limit
+                for pi in pi_results:           # iterates on estimated pi values in pi_results
+                    f.write(str(pi)+'\n')       # writes one estimated pi value per row
     
     
     
@@ -521,13 +533,31 @@ class MonteCarlo(Thread):
     
     
     
+    def print_time(self):
+        """Cecks if time is synchronized at Raspberry Pi."""
+        try:           # tentative
+            output = subprocess.check_output(["timedatectl", "status"])   # timedatectl status
+            output = output.decode("utf-8")     # output is converted from Unicode 8 bit characters
+            if "synchronized: yes" in output:   # case datetime is synchronized
+                print(dt.datetime.now().strftime("%Y-%m-%d  %H:%M:%S"))
+        except:        # case of exception
+            pass       # do nothing
+    
+    
+    
+    
+    
+    
     def monte_carlo(self, runs, dots, animation):
         """This is the key program part for the Monte Carlo."""
         
         start = time.time()                     # current time is assignet to start variable
+        self.print_time()
         
         self.s = settings.get_settings()        # settings are retrieved
         wait_a = int(self.s['wait'])            # wait is 'loaded' each time this function is called
+        step = int(str(self.s['step']))         # delay reduction step of the wait parameter
+        newstep = step                          # step is assigned to newstep
         
         self.pi_results = []                    # list for the estimated pi values (one value each run)
         
@@ -616,8 +646,8 @@ class MonteCarlo(Thread):
                             
                             # approach used to make the animation accelerating 
                             newstep = max(1, i // 100)  # for the first 100 dots the new step remins at one 
-                            if newstep > self.step:   # case newstep is bigger than the step
-                                self.step = newstep   # newstep is assigned to step
+                            if newstep > step:        # case newstep is bigger than the step
+                                step = newstep        # newstep is assigned to step
                                 wait_a -= 10          # wait_a time is reduced by 10 (ms)
                                 wait_a = max(1, wait_a) # wait_a time is never smaller than 1 ms
             
@@ -627,7 +657,10 @@ class MonteCarlo(Thread):
             
             # iteration results are sent to the queue, via a ticket, and a tkinter event generator is called
             ticket = Ticket(ticket_type=TicketPurpose.SHARE_PI_VALUE,
-                            ticket_value=f"{pi_arr[i-1]}", ticket_bg='no')  # ticket with the iteration results
+                            ticket_run = run,
+                            ticket_value = f"{pi_arr[i-1]}",
+                            ticket_bg = 'no',
+                            ticket_progress = 100 * (run+1) / runs )  # ticket with the iteration results
             queue_manager.queue_message.put(ticket)   # ticket is added to the queue
             gui.trigger_event()                       # an event is generated at the GUI class
             
@@ -643,7 +676,10 @@ class MonteCarlo(Thread):
                 
                 # overal results are sent to the queue, via a ticket, and a tkinter event generator is called
                 ticket = Ticket(ticket_type=TicketPurpose.SHARE_PI_VALUE,
-                                ticket_value=f"{pi_ext}", ticket_bg='yes') # ticket with the overall results
+                                ticket_run = run,
+                                ticket_value = f"{pi_ext}",
+                                ticket_bg = 'yes',
+                                ticket_progress= 100 * (run+1) / runs)  # ticket with the the overall results
                 queue_manager.queue_message.put(ticket)  # ticket is added to the queue
                 gui.trigger_event()                   # an event is generated at the GUI class
                 
@@ -721,7 +757,7 @@ class MonteCarlo(Thread):
                     self.pi_ext = sum(self.pi_results) / (run + 1) # estimated pi is calculated on the runs made (run)
                     self.pi_error = self.pi_ext - np.pi      # error of estimated pi from pi is calculated 
                     self.pi_st_dev = np.std(self.pi_results) # st.dev of estimated pi is calculated on the runs made (run)
-                    print("\nInterrupted runs before end")   # feedback is printed to terminal
+                    print("Interrupted runs before end")   # feedback is printed to terminal
                     print(f"Made a total of {run} runs, each one with {self.dots} dots") # feedback is printed to terminal
                     print(f"Estimated pi = {self.pi_ext:.8f}") # feedback is printed to terminal
                     print(f"Error = {self.pi_error:.8f}")    # feedback is printed to terminal
@@ -731,7 +767,7 @@ class MonteCarlo(Thread):
                 self.pi_ext = sum(self.pi_results) / self.runs # estimated pi is calculated
                 self.pi_error = self.pi_ext - np.pi   # error of estimated pi from pi is calculated 
                 if runs == 1 or run == 1:             # case of one single run
-                    print(f"\nMade one run with {self.dots} dots") # feedback is printed to terminal (singular form)
+                    print(f"Made one run with {self.dots} dots") # feedback is printed to terminal (singular form)
                 elif run>1:                           # case of more runs
                     print(f"\nMade a total of {self.runs} runs, each one with {self.dots} dots")
                 print(f"Estimated pi = {self.pi_ext:.8f}") # feedback is printed to terminal
@@ -748,7 +784,7 @@ class MonteCarlo(Thread):
                 
                 # time is printed to terminal
                 print("Total time =", '{:02d}:{:02d}:{:02d}'.format(hours, minutes, seconds), "(animation =", str(animation)+")")
-                print()                               # empty line is printed
+                print("\n"*3)                         # 3 empty lines are printed
             
             
             # a datetime reference is generated, for file name generation
@@ -802,7 +838,7 @@ class GUI(tk.Tk):
         self.dots_unit = int(str(self.s['dots'])[:1])  # first digit in dots, for scientific notation
         self.dots_multiplier = len(str(self.s['dots'])) - 1  # number of digits in dots, less one
         
-        self.w = int(1.7 * self.h)                    # tkintew window width is proposrtional to the set height
+        self.w = int(1.6 * self.h)                    # tkintew window width is proposrtional to the set height
         self.pi_num_chrs = 14                         # number of digits at tkinter label for estimate pi printing
         self.slide_num = 0                            # initial slide (at INFO) to start the scrolling 
         
@@ -817,9 +853,15 @@ class GUI(tk.Tk):
         self.ws = self.winfo_screenwidth()            # retrieves the width of the screen
         self.hs = self.winfo_screenheight()           # retrieves the height of the screen
         
-        gui_w = 530                                   # gui window width
-        gui_h = 600                                   # gui windows height
-        self.geometry(f'{gui_w}x{gui_h}+{int(self.ws-gui_w)}+40') # windows is initially presented at top-right of the screen
+        
+        if device == 'Rpi':                           # case the scripts is running on Raspberry Pi
+            self.gui_w = 520                          # gui window width
+            self.gui_h = 528                          # gui windows height
+        else:                                         # case the scripts is not running on Raspberry Pi
+            self.gui_w = 530                          # gui window width
+            self.gui_h = 565                          # gui windows height
+        
+        self.geometry(f'{self.gui_w}x{self.gui_h}+{int(self.ws-self.gui_w)-10}+36') # windows is initially presented at top-right of the screen
         self.update()                                 # force windows data updated
         
         main_w_w = self.winfo_width()                 # retrieves the window width dimension set automatically 
@@ -829,6 +871,9 @@ class GUI(tk.Tk):
         
         # creation of the main window
         self.create_mainWindow().grid(row=0,column=0,sticky='nsew')  # main window has only one row/column, and it is centered
+        
+        self.ref_t = time.time()                      # current time is assigned to self.ref_t
+        self.td0 = timedelta(0)                       # timedelta zero is assigned to Class variable td0
     
     
     
@@ -858,15 +903,39 @@ class GUI(tk.Tk):
         
         if msg.ticket_type == TicketPurpose.SHARE_PI_VALUE:  # case the ticket_type in msg equals the purpose of SHARE_PI_VALUE method
             
+            run = msg.ticket_run                      # ticket_run is retrieved and assigned to run variable
+            
             text = "pi ~ " + msg.ticket_value         # ticket_value string is used to form a new text string
             text = text[:self.pi_num_chrs]            # the text string is truncated based on pi_num_chrs number of chrs
             self.pi_value_label.configure(text=text)  # label 'pi_value_label' is updated with the new text
             
             bg = msg.ticket_bg                        # ticket_bg is retrieved and assigned to bg variable
+            progress = msg.ticket_progress            # ticket_progress is retrieved and assigned to progress variable
             if bg == 'yes':                           # case bg equals to 'yes'
-                self.pi_value_label.configure(bg='white')  # label 'pi_value_label' is updated with white background
+                self.pi_value_label.configure(bg = 'white')  # label 'pi_value_label' is updated with white background
+                self.progress_bar["value"] = 0        # progress bar is emptied
+                self.progress_label.configure(text = "" )  # label 'progress_label' is set empty
+                self.remaining_t_fix_label.configure(text = "")  # label 'remaining_t_fix_label' is set empty
+                self.remaining_t_label.configure(text = "")  # label 'remaining_t_label' is set empty
+            
             if bg == 'no':                            # case bg equals to 'no'
                 self.pi_value_label.configure(bg=self.default_bg) # label 'pi_value_label' is updated with default_bg background
+                self.progress_bar["value"]=progress   # progress bar is updated
+                self.progress_label.configure(text=str(round(progress, 1)) + "%")  # label 'progress_label' is updated with progress value
+                
+                if run == 1:                          # case the first run has been made
+                    self.ref_t = time.time()          # current time is assigned to self.ref_t
+                    self.remaining_t_fix_label.configure(text = "Estimated time remaining:")  # label is remaining_t_fix is plotted
+                
+                else:                                 # case of run bigger than 1 
+                    run_t = (time.time() - self.ref_t) / (run -1) # average time per each run (from second run onward)
+                    remaining_t = timedelta(seconds = round(0.5+(self.runs -1 -run)*run_t,0))  # expected left time (secs) is assigned to self.left_t
+                    if remaining_t > self.td0:
+                        days = str(remaining_t.days)
+                        secs = remaining_t.seconds
+                        hhmmss = str(timedelta(seconds = secs))
+                        text = days + "d  " + hhmmss
+                        self.remaining_t_label.configure(text = text)  # label 'remaining_t_label' is updated
             
             self.mainWindow.update()                  # tkinter mainWindow is forced updated, to secure the label update
     
@@ -881,103 +950,130 @@ class GUI(tk.Tk):
         
         #### runs related widgets ####
         self.runs_label = tk.LabelFrame(self.mainWindow, text="RUNS", labelanchor="nw", font=("Arial", "14"))
-        self.runs_label.grid(row=0, column=0, rowspan=1, columnspan=4, sticky="n", padx=20, pady=8)
+        self.runs_label.grid(row=0, column=0, rowspan=1, columnspan=3, sticky="nsew", padx=10, pady=(6, 0))
 
         # label for runs
         self.t_runs = tk.Label(self.runs_label, text = self.runs, width = 7, anchor = 'w', font=('arial','18'))
-        self.t_runs.grid(row=0, column=0, sticky="W", padx=12, pady=5)
+        self.t_runs.grid(row=0, column=0, sticky="W", padx=12, pady=(0, 0))
 
         # slider for the units
         self.s_runs_unit = tk.Scale(self.runs_label, label="UNIT", font=('arial','14'), orient='horizontal',
-                                  relief='raised', length=150, from_=1, to_=9, resolution=1) 
-        self.s_runs_unit.grid(row=0, column=1, sticky="w", padx=12, pady=5)
+                                  relief='raised', length=160, from_=1, to_=9, resolution=1) 
+        self.s_runs_unit.grid(row=0, column=1, sticky="w", padx=12, pady=(0, 0))
         self.s_runs_unit.set(self.runs_unit)
         self.s_runs_unit.bind("<ButtonRelease-1>", self.f_runs_unit)
 
 
         # slider for the multiplier (10 to the power of the slider value)
         self.s_runs_multiplier = tk.Scale(self.runs_label, label="x 10^", font=('arial','14'), orient='horizontal',
-                                  relief='raised', length=150, from_=0, to_=6, resolution=1) 
-        self.s_runs_multiplier.grid(row=0, column=2, sticky="w", padx=12, pady=5)
+                                  relief='raised', length=160, from_=0, to_=5, resolution=1) 
+        self.s_runs_multiplier.grid(row=0, column=2, sticky="w", padx=12, pady=(0, 0))
         self.s_runs_multiplier.set(self.runs_multiplier)
         self.s_runs_multiplier.bind("<ButtonRelease-1>", self.f_runs_multiplier)
-
-
-
-
+        
+        
+        
+        
         #### dots related widgets ####
         self.dots_label = tk.LabelFrame(self.mainWindow, text="DOTS", labelanchor="nw", font=("Arial", "14"))
-        self.dots_label.grid(row=1, column=0, rowspan=1, columnspan=4, sticky="n", padx=20, pady=8)
+        self.dots_label.grid(row=1, column=0, rowspan=1, columnspan=3, sticky="nsew", padx=10, pady=(6, 0))
 
         # label for runs
         self.t_dots = tk.Label(self.dots_label, text = self.dots, width = 7, anchor = 'w', font=('arial','18'))
-        self.t_dots.grid(row=1, column=0, sticky="W", padx=12, pady=5)
+        self.t_dots.grid(row=1, column=0, sticky="W", padx=12, pady=(0, 0))
 
         # slider for the units
         self.s_dots_unit = tk.Scale(self.dots_label, label="UNIT", font=('arial','14'), orient='horizontal',
-                                  relief='raised', length=150, from_=1, to_=9, resolution=1) 
-        self.s_dots_unit.grid(row=1, column=1, sticky="w", padx=12, pady=5)
+                                  relief='raised', length=160, from_=1, to_=9, resolution=1) 
+        self.s_dots_unit.grid(row=1, column=1, sticky="w", padx=12, pady=(0, 0))
         self.s_dots_unit.set(self.dots_unit)
         self.s_dots_unit.bind("<ButtonRelease-1>", self.f_dots_unit)
 
 
         # slider for the multiplier (10 to the power of the slider value)
         self.s_dots_multiplier = tk.Scale(self.dots_label, label="x 10^", font=('arial','14'), orient='horizontal',
-                                  relief='raised', length=150, from_=3, to_=6, resolution=1) 
-        self.s_dots_multiplier.grid(row=1, column=2, sticky="w", padx=12, pady=5)
+                                  relief='raised', length=160, from_=3, to_=6, resolution=1) 
+        self.s_dots_multiplier.grid(row=1, column=2, sticky="w", padx=12, pady=(0, 0))
         self.s_dots_multiplier.set(self.dots_multiplier)
         self.s_dots_multiplier.bind("<ButtonRelease-1>", self.f_dots_multiplier)
-
-
-
+        
+        
+        
+        
         #### save settings related widgets ####
-        self.save_label = tk.LabelFrame(self.mainWindow, text="", labelanchor="nw", font=("Arial", "12"))
-        self.save_label.grid(row=2, column=0, rowspan=1, columnspan=5, sticky="ns", padx=10, pady=8)
-
-        self.b_save = tk.Button(self.save_label, text="SAVE  SETTINGS",
-                                command= lambda: self.update_and_save(self.s), height=1, width=50)
-        self.b_save.configure(font=("Arial", "12"))
-        self.b_save.grid(column=1, row=1, sticky="w", rowspan=1, padx=10, pady=5)
-
-
-
+        self.b_save = tk.Button(self.mainWindow, text="SAVE  SETTINGS", font=("Arial", "14"),
+                                command= lambda: self.update_and_save(self.s), height=1)
+        self.b_save.grid(column=0, row=2, sticky="ew", rowspan=1, columnspan=3, padx=10, pady=15)
+        
+        
+        
+        
+        
         #### animation related widgets ####
-        self.animation_label = tk.LabelFrame(self.mainWindow, text="ANIMATION", labelanchor="nw", font=("Arial", "14"))
-        self.animation_label.grid(row=3, column=0, rowspan=1, columnspan=1, sticky="w", padx=20, pady=8)
+        self.animation_label = tk.LabelFrame(self.mainWindow, text=" ANIMATION ", labelanchor="nw", font=("Arial", "14"))
+        self.animation_label.grid(row=3, column=0, rowspan=3, columnspan=1, sticky="nsew", padx=(10,5), pady=8)
         
         # radiobutton for animation level selection
+        self.radio_buttons = []
         self.labels=["max", "med", "min"]             # levels of graphical animation
         self.gui_animation_var = tk.StringVar(self)   # tkinter variable string type is assigned to gui_animation_var
         for i, a_mode in enumerate(self.labels):      # iteration over the labels names
             rb=tk.Radiobutton(self.animation_label, text=a_mode, variable=self.gui_animation_var, value=a_mode)
             rb.configure(font=("Arial", "14"))
-            rb.grid(column=0, row=i, sticky="w", padx=10, pady=12)
+            rb.grid(row=i, sticky="w", padx=10, pady=12) # column=0
+            self.radio_buttons.append(rb)
         self.gui_animation_var.set(self.animation)
-
-
-
+        
+        
+        
+        
         #### Monte Carlo method related widgets ####
         self.pi_label = tk.LabelFrame(self.mainWindow, text="MONTE CARLO", labelanchor="nw", font=("Arial", "14"))
-        self.pi_label.grid(row=3, column=2, rowspan=1, columnspan=1, sticky="e", padx=10, pady=8)
+        self.pi_label.grid(row=3, column=1, rowspan=3, columnspan=2, sticky="nsew", padx=(5,10), pady=8)
 
         # btn to get info on screen
         self.b_info = tk.Button(self.pi_label, text="INFO",
                                 command=lambda: self.show_info(self.h), height=1, width=7)
         self.b_info.configure(font=("Arial", "16"))
-        self.b_info.grid(column=1, row=1, sticky="nsew", rowspan=1, padx=15, pady=4)
+        self.b_info.grid(column=0, row=1, sticky="nsew", rowspan=2, padx=15, pady=4)
 
         # btn to start the Monte Carlo method
         self.b_pi = tk.Button(self.pi_label, text="\u03C0", command=self.start_monte_carlo , height=1, width=4) 
-        self.b_pi.configure(font=("Arial", "42"))
-        self.b_pi.grid(column=2, row=1, sticky="nsew", rowspan=1, padx=15, pady=5)
+        if device == 'Rpi':                           # case the scripts is running on Raspberry Pi
+            self.b_pi.configure(font=("Arial", "50"))
+        else:
+            self.b_pi.configure(font=("Arial", "42"))
+        self.b_pi.grid(column=1, row=1, sticky="nsew", rowspan=2, padx=15, pady=5)
         
         
         # pi label, dynamically updated while Monte Carlo method is working
         self.pi_value_label = tk.Label(self.pi_label, text="", width=self.pi_num_chrs+2)
         self.pi_value_label.configure(font=("Arial", "24"))
-        self.pi_value_label.grid(column=1, row=2, sticky="w", rowspan=1, columnspan=2, padx=10, pady=5)
-
- 
+        self.pi_value_label.grid(column=0, row=3, sticky="nsew", rowspan=1, columnspan=2, padx=10, pady=8)
+        
+        
+        
+        
+        # progress bar to manage waiting time expectation
+        self.progress_bar = ttk.Progressbar(self.mainWindow, orient="horizontal", length=350, mode="determinate") 
+        self.progress_bar.grid(column=0, row=6, sticky="nsew", rowspan=1, columnspan=2, padx=10, pady=3)
+        
+        # progress bar value label
+        self.progress_label = tk.Label(self.mainWindow, text="", width=6)
+        self.progress_label.configure(font=("Arial", "16"))
+        self.progress_label.grid(column=2, row=6, sticky="e", rowspan=1, columnspan=1, padx=(5,20), pady=1)
+        
+        # fix label for the estimated remaining time
+        self.remaining_t_fix_label = tk.Label(self.mainWindow, text="")
+        self.remaining_t_fix_label.configure(font=("Arial", "15"))
+        self.remaining_t_fix_label.grid(column=0, row=7, sticky="w", rowspan=1, columnspan=2, padx=10, pady=1)
+        
+        # label to update the estimated remaining time
+        self.remaining_t_label = tk.Label(self.mainWindow, text="", width=12)
+        self.remaining_t_label.configure(font=("Arial", "15"))
+        self.remaining_t_label.grid(column=2, row=7, sticky="e", rowspan=1, columnspan=1, padx=(5,10), pady=1)
+        
+        
         return self.mainWindow
     
     
@@ -1134,6 +1230,103 @@ class GUI(tk.Tk):
     
     
     
+    def initialize_widgets(self):
+        """Initializes the text of some widgets and the progress bar value."""
+        self.progress_bar["value"] = 0                # progress bar is emptied
+        self.progress_label.configure(text = "" )     # label 'progress_label' is set empty
+        self.remaining_t_fix_label.configure(text = "" )  # label 'remaining_t_fix_label' is set empty
+        self.remaining_t_label.configure(text = "" )  # label 'remaining_t_label' is set empty
+        self.pi_value_label.configure(text = "")      # pi_value_label is set empty
+        self.pi_value_label.configure(bg=self.default_bg) # pi_value_label backfround is set to default color
+        self.mainWindow.update()                      # mainWindow gets a forced update, to ensure the label is updated
+    
+    
+    
+    
+    
+    
+    def disable_widgets(self):
+        """Disables the widgets."""
+        
+        self.s_runs_unit['state'] = 'disabled'        # s_runs_unit (scale and slider) disabled
+        self.s_runs_unit['relief'] = 'sunken'         # s_runs_unit (scale) is recessed
+        self.s_runs_unit['sliderrelief'] = 'sunken'   # s_runs_unit (slider) is recessed
+        self.s_runs_unit.update()                     # s_runs_unit (slider and scale) is updated
+        
+        self.s_runs_multiplier['state'] = 'disabled'  # s_runs_multiplier (scale and slider) disabled
+        self.s_runs_multiplier['relief'] = 'sunken'   # s_runs_multiplier (scale) is recessed
+        self.s_runs_multiplier['sliderrelief'] = 'sunken'  # s_runs_multiplier (slider) is recessed
+        self.s_runs_multiplier.update()               # s_runs_multiplier (scale) is updated
+        
+        self.s_dots_unit['state'] = 'disabled'        # s_dots_unit (scale and slider) disabled
+        self.s_dots_unit['relief'] = 'sunken'         # s_dots_unit (scale) is recessed
+        self.s_dots_unit['sliderrelief'] = 'sunken'   # s_dots_unit (slider) is recessed
+        self.s_dots_unit.update()                     # s_dots_unit (scale) is updated
+        
+        self.s_dots_multiplier['state'] = 'disabled'  # s_dots_multiplier (scale and slider) disabled
+        self.s_dots_multiplier['relief'] = 'sunken'   # s_dots_multiplier (scale) is recessed
+        self.s_dots_multiplier['sliderrelief'] = 'sunken' # s_dots_multiplier (slider) is recessed
+        self.s_dots_multiplier.update()               # s_dots_multiplier (scale) is updated
+        
+        for radio_button in self.radio_buttons:       # iteration over the radio buttons
+            radio_button.configure(state = 'disabled') # radio button is disabled
+        
+        self.b_pi['state'] = 'disabled'               # b_p (button for pi calculation) is disabled
+        self.b_pi['relief'] = 'sunken'                # b_p (button for pi calculation) is recessed
+        self.b_pi.update()                            # b_p (button for pi calculation) is updated
+        
+        self.b_info['state'] = 'disabled'             # b_info (button for info) is disabled
+        self.b_info['relief'] = 'sunken'              # b_info (button for info) is recessed
+        self.b_info.update()                          # b_info (button for info) is updated
+        
+        self.mainWindow.update()                      # mainWindow gets a forced updated    
+    
+    
+    
+    
+    
+    
+    def enable_widgets(self):
+        """Enables the widgets."""
+        
+        self.s_runs_unit['state'] = 'normal'          # s_runs_unit (scale and slider) enabled
+        self.s_runs_unit['relief'] = 'raised'         # s_runs_unit (scale) is raised
+        self.s_runs_unit['sliderrelief'] = 'raised'   # s_runs_unit (slider) is raised
+        self.s_runs_unit.update()                     # s_runs_unit (scale) is updated
+        
+        self.s_runs_multiplier['state'] = 'normal'    # s_runs_multiplier (scale and slider) enabled
+        self.s_runs_multiplier['relief'] = 'raised'   # s_runs_multiplier (scale) is raised
+        self.s_runs_multiplier['sliderrelief'] = 'raised'  # s_runs_multiplier (slider) is raised
+        self.s_runs_multiplier.update()               # s_runs_multiplier (scale) is updated
+        
+        self.s_dots_unit['state'] = 'normal'          # s_dots_unit (scale and slider) enabled
+        self.s_dots_unit['relief'] = 'raised'         # s_dots_unit (scale) is raised
+        self.s_dots_unit['sliderrelief'] = 'raised'   # s_dots_unit (slider) is raised
+        self.s_dots_unit.update()                     # s_dots_unit (scale) is updated
+        
+        self.s_dots_multiplier['state'] = 'normal'    # s_dots_multiplier (scale and slider) enabled
+        self.s_dots_multiplier['relief'] = 'raised'   # s_dots_multiplier (scale) is raised
+        self.s_dots_multiplier['sliderrelief'] = 'raised'  # s_dots_multiplier (slider) is raised
+        self.s_dots_multiplier.update()               # s_dots_multiplier (scale) is updated
+        
+        for radio_button in self.radio_buttons:       # iteration over the radio buttons
+            radio_button.configure(state = 'normal')  # radio button is enabled
+        
+        self.b_pi['state'] = 'normal'                 # b_p (button for pi calculation) is enabled
+        self.b_pi['relief'] = 'raised'                # b_p (button for pi calculation) is raised
+        self.b_pi.update()                            # b_p (button for pi calculation) is updated
+        
+        self.b_info['state'] = 'normal'               # b_info (button for info) is enabled
+        self.b_info['relief'] = 'raised'              # b_info (button for info) is raised
+        self.b_info.update()                          # b_info (button for info) is updated
+        
+        self.mainWindow.update()                      # mainWindow gets a forced updated
+    
+    
+    
+    
+    
+    
     def start_monte_carlo(self):     
         """Function in gui class to call the montecarlo function in montecarlo class.
         Calls the charts generation functions, based on the monte carlo returned values."""
@@ -1144,28 +1337,26 @@ class GUI(tk.Tk):
             except tk.TclError:                       # case of tkinter exception
                 pass                                  # do nothing
         
-        # initialize some variables
-        self.pi_value_label.configure(text="")        # pi_value_label is set empty
-        self.pi_value_label.configure(bg=self.default_bg) # pi_value_label backfround is set to default color
-        self.mainWindow.update()                      # mainWindow gets a forced update, to ensure the label is updated
-        
-        # disable the Monte Carlo launch button
-        self.b_pi['state'] = 'disabled'               # b_p (button for pi calculation) is disabled
-        self.b_pi['relief'] = 'sunken'                # b_p (button for pi calculation) is recessed
-        self.b_pi.update()                            # b_p (button for pi calculation) is updated
-        self.mainWindow.update()                      # mainWindow gets a forced update, to ensure b_p is updated
-
-        
+        self.initialize_widgets()                     # initialize some of the widgets (labels, progressbar, etc)
+        self. disable_widgets()                       # disable widgets
         animation = self.gui_animation_var.get()      # checks the animation selection
+        
         
         # starts the Monte Carlo
         pi, pi_st_dev, pi_error, self.pi_results, self.datetime = montecarlo.monte_carlo(self.runs, self.dots, animation)
         
         if tk_running:                                # check if the GUI has not been closed
-            
-            datapoints = len(self.pi_results)         # quantity of datapoints 
-            if datapoints >= 50:                      # case there are at least 50 datapoints
-                # when there are at least 50 datapoints, then it makes sense to plot some charts
+            pi_results = self.pi_results              # self.pi_results is assigned to local pi_results
+            datapoints = len(pi_results)              # quantity of datapoints 
+            min_dp = 50                               # min datapoints quantity, for plotting
+            max_dp = 5000                             # max datapoints quantity, for plotting
+            if datapoints >= min_dp:                  # case there are at least min_dp datapoints
+                # it makes sense to plot some charts
+                
+                # case there are too many datapoints to plot
+                if datapoints > max_dp:               # case there are more than max_dp datapoints
+                    pi_results = self.pi_results[:max_dp]  # self.pi_results array is split and assigned to local
+                    datapoints = max_dp               # max_dp is assigned to datapoints variable
             
                 # preparing data arrays for plotting
                 self.x = np.linspace(1, datapoints, datapoints)  # array with x axis values, from 1 to datapoints
@@ -1173,26 +1364,24 @@ class GUI(tk.Tk):
                 st_dev=[]                             # empty list to collect the standard deviation values
                 for i in range(datapoints):           # iteration over the quantity of datapoints
                     if i==0:                          # case of the the array index
-                        error.append((self.pi_results[0] - np.pi))  # error is calculated, from the first estimated pi result
+                        error.append((pi_results[0] - np.pi))  # error is calculated, from the first estimated pi result
                         st_dev.append(0)              # zero standard deviation is appended
                     else:                             # case not of the first array index
-                        pi_cumulative = np.cumsum(self.pi_results[:i])  # a cumulative sum is performed until the index 'i'
+                        pi_cumulative = np.cumsum(pi_results[:i])  # a cumulative sum is performed until the index 'i'
                         pi_ext = pi_cumulative[-1] / i  # estimated pi for 'i' quantity of datapoints
-                        error.append(( pi_ext - np.pi))  # appended the error (error = difference between the estimated pi and pi)
-                        st_dev.append(np.std(self.pi_results[:i])) # standard deviation for the estimated pi until the index 'i'
+                        error.append((pi_ext - np.pi))  # appended the error (error = difference between the estimated pi and pi)
+                        st_dev.append(np.std(pi_results[:i])) # standard deviation for the estimated pi until the index 'i'
                 
                 self.error = np.array(error)          # error list is converted to numpy array
                 self.st_dev = np.array(st_dev)        # st_dev list is converted to numpy array
 
                 # calls a function to generate a histogram with the calculated pi values\
                 # from the histrogram window there will be access to othe charts related windows
-                self.create_histogram(pi, pi_st_dev, self.pi_results, self.dots)
+                self.create_histogram(pi, pi_st_dev, pi_results, self.dots)
         
-            # enable the Monte Carlo launch button
-            self.b_pi['state'] = 'normal'             # b_p (button for pi calculation) is enabled
-            self.b_pi['relief'] = 'raised'            # b_p (button for pi calculation) is raised
-            self.b_pi.update()                        # b_p (button for pi calculation) is updated
-            self.mainWindow.update()                  # mainWindow gets a forced update, to ensure b_p is updated
+            
+            
+            self.enable_widgets()                         # enable widgets
         
         # this function has a return (not sure it is really needed)
         return pi, pi_error, self.pi_results 
@@ -1222,11 +1411,11 @@ class GUI(tk.Tk):
         canvas2.pack(side = tk.BOTTOM, fill=tk.BOTH, expand=1)
         
         # Add a button to open the error window
-        btn_open_error = tk.Button(canvas1, text="Plot pi error", command= self.plot_error)
+        btn_open_error = tk.Button(canvas1, text="Plot pi error", command= lambda:self.plot_error(pi_results))
         btn_open_error.place(relx=0, rely=0, anchor="nw", x=10, y=10)  # Placing the btn_open_error button on the top left
         
         # Add a button to open the standard deviation window
-        btn_open_stdev = tk.Button(canvas1, text="Plot standard deviation", command= self.plot_st_dev)
+        btn_open_stdev = tk.Button(canvas1, text="Plot standard deviation", command= lambda:self.plot_st_dev(pi_results))
         btn_open_stdev.place(relx=0.45, rely=0, anchor="nw", x=0, y=10)  # Placing the btn_open_stdev button on the middle
         
         # Add a close button to the histogram window
@@ -1246,8 +1435,11 @@ class GUI(tk.Tk):
         plt.hist(pi_results, bins='scott', color='skyblue', edgecolor='black') 
 
         # Set chart title (on two rows) and axes labels
-        title =  f'pi approximation:  avg = {str(pi)[:9]}, st.dev = {str(pi_st_dev)[:9]}\n'
-        title += f'( {runs} runs of {dots} dots each )'  # chart title
+        title =  f'pi approximation:  avg = {str(pi)[:9]}, st.dev = {str(pi_st_dev)[:9]}\n' # chart title 1st row
+        if len(self.pi_results) > len(pi_results):    # case plotted data is a slice of the total
+            title += f'( First {runs} runs of {dots} dots each )'  # chart title 2nd row
+        else:                                         # case plotted data is all the data
+            title += f'( {len(self.error)} runs of {dots} dots each )'  # chart title 2nd row
         plt.title(title, fontsize = 12)               # title is plot to the chart with fontsize assigned
         plt.xlabel('pi approximated values')          # x axis label is assigned
         plt.ylabel('Frequency')                       # y axis label is assigned
@@ -1278,7 +1470,7 @@ class GUI(tk.Tk):
     
     
     
-    def plot_error(self):
+    def plot_error(self, pi_results):
         """Function to create a tkinter window and plot a line chart.
         Button is added to close this window."""
         
@@ -1300,8 +1492,11 @@ class GUI(tk.Tk):
         # Set chart title (in two rows) and axes labels
         dots = '{:,.0f}'.format(len(self.error))      # dots value, and convertedt to text with thousands separator
         final_error = format(self.error[-1], '.8f')   # latest error datapoint, and converted to text with thousands separator
-        title =  f'pi approximation error = {final_error[:10]}\n'   # chart title
-        title += f'( {len(self.error)} runs of {dots} dots each )'
+        title =  f'pi approximation error = {final_error[:10]}\n'   # chart title 1st row
+        if len(self.pi_results) > len(pi_results):    # case plotted data is a slice of the total
+            title += f'( First {runs} runs of {dots} dots each )'  # chart title 2nd row
+        else:                                         # case plotted data is all the data
+            title += f'( {len(self.error)} runs of {dots} dots each )'   # chart title 2nd row
         plt.title(title, fontsize = 12)               # title is plot to the chart with fontsize assigned
         plt.xlabel('runs')                            # x axis label is assigned
         plt.ylabel('error')                           # y axis label is assigned
@@ -1341,7 +1536,7 @@ class GUI(tk.Tk):
     
     
     
-    def plot_st_dev(self):
+    def plot_st_dev(self, pi_results):
         """Function to create a tkinter window and plot a line chart.
         Button is added to close this window."""
         
@@ -1364,8 +1559,11 @@ class GUI(tk.Tk):
         # Set chart title (in two rows) and axes labels
         dots = '{:,.0f}'.format(len(self.st_dev))     # dots value, and convertedt to text with thousands separator
         final_st_dev = format(self.st_dev[-1], '.8f') # latest st.dev value, and converted to text with thousands separator
-        title =  f'pi approximation st.dev = {final_st_dev[:10]}\n' # chart title
-        title += f'( {len(self.st_dev)} runs of {dots} dots each )' # chart title
+        title =  f'pi approximation st.dev = {final_st_dev[:10]}\n' # chart title 1st row
+        if len(self.pi_results) > len(pi_results):    # case plotted data is a slice of the total
+            title += f'( First {runs} runs of {dots} dots each )'  # chart title 2nd row
+        else:                                         # case plotted data is all the data
+            title += f'( {len(self.error)} runs of {dots} dots each )'   # chart title 2nd row
         plt.title(title, fontsize = 12)               # title is plot to the chart with fontsize assigned
         plt.xlabel('runs')                            # x axis label is assigned
         plt.ylabel('standard deviation')              # y axis label is assigned
@@ -1415,11 +1613,27 @@ class GUI(tk.Tk):
 
 
 
+def hd_check():
+    """Extremely trivial check if the code is running on Rpi."""
+    
+    try:                                              # tentative
+        with open('/sys/firmware/devicetree/base/model') as device: # opens the file with model info
+            RPi_model = device.read()                 # file is read
+            if 'Raspberry Pi' in RPi_model:           # check if it contains 'Raspberry Pi'
+                print("\nEstimating pi value with a Raspberry Pi  :-) ") # feedback is printed to the Terminal
+                print("\n" * 3)                       # prints 3 empty lines as separation
+                return 'Rpi'                          # 'Rpi'string is returned
+    except:                                           # case of exception
+        pass                                          # do nothing (it is not a Raspberry Pi)
+    
 
 
 
 
 if __name__ == "__main__":
+    
+    
+    device = hd_check()              # trivial checks if the app runs on Raspberry Pi
     
     tk_running = True                # set a global variable to monitor the tkinter class being runnin
     
